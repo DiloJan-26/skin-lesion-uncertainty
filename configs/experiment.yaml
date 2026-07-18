@@ -1,0 +1,113 @@
+project:
+  name: uncertainty-aware-skin-lesion-classification
+  title: Uncertainty-Aware Skin Lesion Classification with Human Referral
+  task: seven-class dermoscopic skin lesion classification
+  prototype_warning: research prototype only, not a medical diagnostic tool
+
+data:
+  dataset_name: HAM10000
+  metadata_filename: HAM10000_metadata.csv
+  image_id_column: image_id
+  lesion_group_column: lesion_id
+  label_column: dx
+  classes:
+    - akiec
+    - bcc
+    - bkl
+    - df
+    - mel
+    - nv
+    - vasc
+  num_classes: 7
+  image_size: 224
+  train_fraction: 0.80
+  val_fraction: 0.10
+  test_fraction: 0.10
+  grouped_split: true
+  stratified_split: true
+
+model:
+  baseline_backbone: efficientnet_b0
+  main_backbone: efficientnet_b0
+  proposed_backbone_note: EfficientNet-B0 is used to enable ensemble-based uncertainty estimation under free GPU resources.
+  pretrained: true
+  num_classes: 7
+  dropout_probability: 0.20
+
+training:
+  ensemble_seeds:
+    - 42
+    - 123
+    - 999
+  max_epochs: 12
+  early_stopping_patience: 3
+  batch_size: 32
+  fallback_batch_size: 16
+  optimizer: AdamW
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  loss: weighted_cross_entropy
+  mixed_precision: true
+  model_selection_metric: validation_macro_f1
+
+calibration:
+  method: temperature_scaling
+  objective: negative_log_likelihood
+  calibration_split: validation
+
+uncertainty:
+  primary_method: deep_ensemble
+  ensemble_members: 3
+  comparative_method: mc_dropout
+  mc_dropout_passes: 20
+  scores:
+    - maximum_calibrated_probability
+    - confidence_based_uncertainty
+    - predictive_entropy
+    - ensemble_variance
+    - ensemble_disagreement
+    - mc_dropout_variance
+
+referral:
+  strategy: selective_classification
+  coverage_levels:
+    - 1.00
+    - 0.95
+    - 0.90
+    - 0.85
+    - 0.80
+    - 0.70
+    - 0.60
+  threshold_selection_split: validation
+  freeze_threshold_before_test: true
+
+evaluation:
+  classification_metrics:
+    - accuracy
+    - macro_precision
+    - macro_recall
+    - macro_f1
+    - melanoma_recall
+  calibration_metrics:
+    - expected_calibration_error
+    - negative_log_likelihood
+    - multiclass_brier_score
+    - reliability_diagram
+  uncertainty_metrics:
+    - predictive_entropy
+    - ensemble_disagreement
+    - mc_dropout_variance
+    - error_detection_auroc
+  referral_metrics:
+    - selective_accuracy
+    - selective_risk
+    - coverage
+    - rejection_rate
+    - risk_coverage_curve
+
+outputs:
+  checkpoints_dir: outputs/checkpoints
+  figures_dir: outputs/figures
+  tables_dir: outputs/tables
+  logits_dir: outputs/logits
+  predictions_dir: outputs/predictions
