@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -98,6 +99,83 @@ def plot_batch_preview(
 
     for ax in axes_list[num_images:]:
         ax.axis("off")
+
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination
+
+
+def plot_training_curves(history_df: pd.DataFrame, output_path: str | Path) -> Path:
+    """Save baseline training loss and validation macro F1 curves."""
+    required_columns = {"epoch", "train_loss", "val_loss", "val_macro_f1"}
+    missing_columns = required_columns.difference(history_df.columns)
+    if missing_columns:
+        raise ValueError(
+            "history_df is missing required column(s): "
+            f"{', '.join(sorted(missing_columns))}"
+        )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].plot(history_df["epoch"], history_df["train_loss"], label="train")
+    axes[0].plot(history_df["epoch"], history_df["val_loss"], label="val")
+    axes[0].set_title("Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].legend()
+
+    axes[1].plot(
+        history_df["epoch"],
+        history_df["val_macro_f1"],
+        label="val macro F1",
+        color="#F58518",
+    )
+    axes[1].set_title("Validation Macro F1")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Macro F1")
+    axes[1].set_ylim(0.0, 1.0)
+    axes[1].legend()
+
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination
+
+
+def plot_confusion_matrix(confusion_df: pd.DataFrame, output_path: str | Path) -> Path:
+    """Save a confusion matrix heatmap using matplotlib only."""
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    values = confusion_df.to_numpy()
+    fig, ax = plt.subplots(figsize=(8, 7))
+    image = ax.imshow(values, cmap="Blues")
+    fig.colorbar(image, ax=ax)
+    ax.set_title("Confusion Matrix")
+    ax.set_xlabel("Predicted class")
+    ax.set_ylabel("True class")
+    ax.set_xticks(np.arange(len(confusion_df.columns)))
+    ax.set_yticks(np.arange(len(confusion_df.index)))
+    ax.set_xticklabels(confusion_df.columns, rotation=45, ha="right")
+    ax.set_yticklabels(confusion_df.index)
+
+    threshold = values.max() / 2 if values.size else 0
+    for row_index in range(values.shape[0]):
+        for column_index in range(values.shape[1]):
+            count = int(values[row_index, column_index])
+            color = "white" if count > threshold else "black"
+            ax.text(
+                column_index,
+                row_index,
+                str(count),
+                ha="center",
+                va="center",
+                color=color,
+                fontsize=8,
+            )
 
     fig.tight_layout()
     fig.savefig(destination, dpi=150)

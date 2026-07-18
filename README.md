@@ -76,6 +76,10 @@ DataLoader creation, EfficientNet-B0 model factory, class-weight summaries, and
 batch/model preview helpers while keeping torch, torchvision, and timm imports
 lazy for lightweight local testing.
 
+Phase 4 adds reusable single-model baseline training, validation evaluation,
+checkpoint/history export hooks, logits and prediction table export, core
+classification metrics, training curves, and confusion matrix plotting.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -85,7 +89,9 @@ lazy for lightweight local testing.
   stratified splitting, split summaries, and class-distribution plots.
 - Phase 3: PyTorch image dataset, transforms, DataLoaders, EfficientNet-B0
   classifier creation, class weights, and lightweight summaries.
-- Phase 4: Temperature Scaling, deep ensemble and MC Dropout uncertainty
+- Phase 4: single EfficientNet-B0 baseline training, evaluation, inference
+  export, classification metrics, training curves, and confusion matrices.
+- Phase 5: Temperature Scaling, deep ensemble and MC Dropout uncertainty
   scoring, referral threshold selection, and test-set evaluation.
-- Phase 5: reliability diagrams, risk-coverage curves, tables, final report
+- Phase 6: reliability diagrams, risk-coverage curves, tables, final report
   figures, and reproducibility cleanup.
