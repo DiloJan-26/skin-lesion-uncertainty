@@ -123,3 +123,40 @@ def prediction_dataframe_from_logits(
         predictions_df[f"prob_{class_name}"] = probabilities[:, class_index]
 
     return predictions_df
+
+
+def prediction_dataframe_from_probabilities(
+    probs: Any,
+    labels: Any,
+    metadata_df: pd.DataFrame,
+    classes: list[str],
+) -> pd.DataFrame:
+    """Build a prediction table from already-calibrated probabilities."""
+    probabilities = np.asarray(probs, dtype=np.float64)
+    labels_array = np.asarray(labels, dtype=int)
+    predicted_labels = np.argmax(probabilities, axis=1).astype(int)
+
+    if len(metadata_df) != len(labels_array):
+        raise ValueError(
+            "metadata_df length must match probabilities and labels length "
+            f"({len(metadata_df)} != {len(labels_array)})."
+        )
+    if probabilities.shape[1] != len(classes):
+        raise ValueError(
+            "Probability column count must match classes length "
+            f"({probabilities.shape[1]} != {len(classes)})."
+        )
+
+    predictions_df = metadata_df[["image_id", "lesion_id"]].copy()
+    predictions_df["true_label"] = labels_array
+    predictions_df["true_class"] = [classes[index] for index in labels_array]
+    predictions_df["predicted_label"] = predicted_labels
+    predictions_df["predicted_class"] = [
+        classes[index] for index in predicted_labels
+    ]
+    predictions_df["confidence"] = probabilities.max(axis=1)
+    predictions_df["correct"] = labels_array == predicted_labels
+    for class_index, class_name in enumerate(classes):
+        predictions_df[f"prob_{class_name}"] = probabilities[:, class_index]
+
+    return predictions_df

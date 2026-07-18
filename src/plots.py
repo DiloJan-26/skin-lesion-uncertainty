@@ -181,3 +181,50 @@ def plot_confusion_matrix(confusion_df: pd.DataFrame, output_path: str | Path) -
     fig.savefig(destination, dpi=150)
     plt.close(fig)
     return destination
+
+
+def plot_reliability_diagram(
+    uncalibrated_curve_df: pd.DataFrame,
+    calibrated_curve_df: pd.DataFrame,
+    output_path: str | Path,
+) -> Path:
+    """Save a reliability diagram comparing uncalibrated and calibrated curves."""
+    required_columns = {"confidence", "accuracy"}
+    for name, curve_df in {
+        "uncalibrated_curve_df": uncalibrated_curve_df,
+        "calibrated_curve_df": calibrated_curve_df,
+    }.items():
+        missing_columns = required_columns.difference(curve_df.columns)
+        if missing_columns:
+            raise ValueError(
+                f"{name} is missing required column(s): "
+                f"{', '.join(sorted(missing_columns))}"
+            )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot([0.0, 1.0], [0.0, 1.0], linestyle="--", color="black", label="perfect")
+    ax.plot(
+        uncalibrated_curve_df["confidence"],
+        uncalibrated_curve_df["accuracy"],
+        marker="o",
+        label="uncalibrated",
+    )
+    ax.plot(
+        calibrated_curve_df["confidence"],
+        calibrated_curve_df["accuracy"],
+        marker="o",
+        label="calibrated",
+    )
+    ax.set_title("Reliability Diagram")
+    ax.set_xlabel("Confidence")
+    ax.set_ylabel("Accuracy")
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination

@@ -80,6 +80,10 @@ Phase 4 adds reusable single-model baseline training, validation evaluation,
 checkpoint/history export hooks, logits and prediction table export, core
 classification metrics, training curves, and confusion matrix plotting.
 
+Phase 5 adds Temperature Scaling utilities, calibration metrics, calibrated
+probability prediction tables, and reliability diagram plotting for comparing
+uncalibrated and calibrated confidence.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -91,7 +95,9 @@ classification metrics, training curves, and confusion matrix plotting.
   classifier creation, class weights, and lightweight summaries.
 - Phase 4: single EfficientNet-B0 baseline training, evaluation, inference
   export, classification metrics, training curves, and confusion matrices.
-- Phase 5: Temperature Scaling, deep ensemble and MC Dropout uncertainty
-  scoring, referral threshold selection, and test-set evaluation.
-- Phase 6: reliability diagrams, risk-coverage curves, tables, final report
+- Phase 5: Temperature Scaling, calibration metrics, calibrated probabilities,
+  prediction tables, and reliability diagrams.
+- Phase 6: deep ensemble and MC Dropout uncertainty scoring, referral threshold
+  selection, and test-set evaluation.
+- Phase 7: reliability diagrams, risk-coverage curves, tables, final report
   figures, and reproducibility cleanup.
