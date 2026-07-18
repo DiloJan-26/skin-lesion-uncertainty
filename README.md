@@ -66,13 +66,19 @@ HAM10000 images and metadata are not included in GitHub. Dataset locations must
 be supplied externally in future phases; source code should not hardcode local
 or Kaggle dataset paths.
 
+Phase 2 includes reusable helpers for HAM10000 path discovery, metadata loading,
+image-path attachment, grouped stratified splitting, split summaries, and class
+distribution plots. These helpers accept caller-supplied paths and are suitable
+for Kaggle notebooks.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
   reproducibility helper, placeholder modules, README, and lightweight tests.
-- Phase 1: data loading, grouped stratified splits, EfficientNet-B0 models,
-  Kaggle training loops, inference exports, and notebook implementation.
-- Phase 2: Temperature Scaling, deep ensemble and MC Dropout uncertainty
+- Phase 1: Kaggle setup and HAM10000 dataset discovery.
+- Phase 2: metadata loading, image-path attachment, leakage-safe grouped
+  stratified splitting, split summaries, and class-distribution plots.
+- Phase 3: Temperature Scaling, deep ensemble and MC Dropout uncertainty
   scoring, referral threshold selection, and test-set evaluation.
-- Phase 3: reliability diagrams, risk-coverage curves, tables, final report
+- Phase 4: reliability diagrams, risk-coverage curves, tables, final report
   figures, and reproducibility cleanup.
