@@ -13,11 +13,265 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from PIL import Image
 from sklearn.model_selection import StratifiedGroupKFold
 
 
 REQUIRED_METADATA_COLUMNS = {"lesion_id", "image_id", "dx"}
 EXPECTED_SPLITS = ("train", "val", "test")
+
+
+def get_label_mapping(classes: list[str]) -> dict[str, int]:
+    """Return a fixed class-to-index mapping from an ordered class list."""
+    if len(classes) != len(set(classes)):
+        raise ValueError("Class names must be unique to build a label mapping.")
+    return {class_name: index for index, class_name in enumerate(classes)}
+
+
+def add_label_indices(
+    df: pd.DataFrame,
+    classes: list[str],
+    label_column: str = "dx",
+) -> pd.DataFrame:
+    """Add label_index using a fixed class order."""
+    if label_column not in df.columns:
+        raise ValueError(f"Dataframe is missing label column: {label_column}")
+
+    label_mapping = get_label_mapping(classes)
+    unknown_labels = sorted(set(df[label_column]).difference(label_mapping))
+    if unknown_labels:
+        raise ValueError(
+            "Unknown class label(s) found while adding label indices: "
+            f"{', '.join(map(str, unknown_labels))}"
+        )
+
+    indexed_df = df.copy()
+    indexed_df["label_index"] = indexed_df[label_column].map(label_mapping).astype(int)
+    return indexed_df
+
+
+def compute_class_weights(
+    df: pd.DataFrame,
+    classes: list[str],
+    label_column: str = "dx",
+) -> pd.DataFrame:
+    """Compute inverse-frequency class weights in the supplied class order."""
+    if label_column not in df.columns:
+        raise ValueError(f"Dataframe is missing label column: {label_column}")
+
+    get_label_mapping(classes)
+    counts = df[label_column].value_counts()
+    total_count = len(df)
+    num_classes = len(classes)
+    rows: list[dict[str, float | int | str]] = []
+    for class_name in classes:
+        class_count = int(counts.get(class_name, 0))
+        if class_count <= 0:
+            raise ValueError(
+                "Cannot compute class weight for class with zero examples: "
+                f"{class_name}"
+            )
+        rows.append(
+            {
+                "class": class_name,
+                "count": class_count,
+                "weight": total_count / (num_classes * class_count),
+            }
+        )
+
+    return pd.DataFrame(rows, columns=["class", "count", "weight"])
+
+
+class HAM10000ImageDataset:
+    """Torch-compatible HAM10000 image dataset backed by a pandas dataframe."""
+
+    def __init__(
+        self,
+        dataframe: pd.DataFrame,
+        classes: list[str],
+        transform: Any = None,
+        image_path_column: str = "image_path",
+        label_column: str = "dx",
+        image_id_column: str = "image_id",
+        lesion_id_column: str = "lesion_id",
+    ) -> None:
+        """Create a dataset that returns image, label, and metadata dictionaries."""
+        required_columns = {
+            image_path_column,
+            label_column,
+            image_id_column,
+            lesion_id_column,
+        }
+        missing_columns = sorted(required_columns.difference(dataframe.columns))
+        if missing_columns:
+            raise ValueError(
+                "Dataset dataframe is missing required column(s): "
+                f"{', '.join(missing_columns)}"
+            )
+
+        self.dataframe = add_label_indices(dataframe, classes, label_column)
+        self.classes = classes
+        self.transform = transform
+        self.image_path_column = image_path_column
+        self.label_column = label_column
+        self.image_id_column = image_id_column
+        self.lesion_id_column = lesion_id_column
+
+    def __len__(self) -> int:
+        """Return the number of image rows."""
+        return len(self.dataframe)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        """Load one RGB image and return model input plus row metadata."""
+        row = self.dataframe.iloc[index]
+        image_path = Path(row[self.image_path_column])
+        with Image.open(image_path) as image_file:
+            image = image_file.convert("RGB")
+
+        transformed_image = self.transform(image) if self.transform else image
+        return {
+            "image": transformed_image,
+            "label": int(row["label_index"]),
+            "image_id": str(row[self.image_id_column]),
+            "lesion_id": str(row[self.lesion_id_column]),
+            "class_name": str(row[self.label_column]),
+        }
+
+
+def get_image_transforms(image_size: int, train: bool) -> Any:
+    """Create torchvision transforms for train or validation/test images."""
+    try:
+        from torchvision import transforms
+    except ImportError as exc:
+        raise ImportError(
+            "torchvision is required to create image transforms. "
+            "Install/use it in the Kaggle GPU environment."
+        ) from exc
+
+    imagenet_mean = [0.485, 0.456, 0.406]
+    imagenet_std = [0.229, 0.224, 0.225]
+    if train:
+        return transforms.Compose(
+            [
+                transforms.Resize((image_size, image_size)),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomRotation(degrees=20),
+                transforms.ColorJitter(brightness=0.1, contrast=0.1),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+            ]
+        )
+
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
+        ]
+    )
+
+
+def create_dataloader(
+    dataset: Any,
+    batch_size: int,
+    shuffle: bool,
+    num_workers: int = 2,
+    pin_memory: bool = True,
+) -> Any:
+    """Create a PyTorch DataLoader with lazy torch import."""
+    try:
+        from torch.utils.data import DataLoader
+    except ImportError as exc:
+        raise ImportError(
+            "torch is required to create DataLoaders. "
+            "Use this function in the Kaggle GPU environment."
+        ) from exc
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
+
+
+def load_split_csvs(split_dir: str | Path) -> dict[str, pd.DataFrame]:
+    """Load train, validation, and test split CSV files from a directory."""
+    directory = Path(split_dir)
+    split_paths = {
+        "train": directory / "train_split.csv",
+        "val": directory / "val_split.csv",
+        "test": directory / "test_split.csv",
+    }
+
+    missing_paths = [str(path) for path in split_paths.values() if not path.exists()]
+    if missing_paths:
+        raise FileNotFoundError(
+            "Missing required split CSV file(s): " f"{', '.join(missing_paths)}"
+        )
+
+    return {
+        split_name: pd.read_csv(path)
+        for split_name, path in split_paths.items()
+    }
+
+
+def build_datasets_and_loaders(
+    split_dir: str | Path,
+    classes: list[str],
+    image_size: int,
+    batch_size: int,
+    fallback_batch_size: int | None = None,
+    num_workers: int = 2,
+) -> tuple[dict[str, HAM10000ImageDataset], dict[str, Any], pd.DataFrame]:
+    """Build datasets, dataloaders, and class weights from saved split CSVs."""
+    if batch_size <= 0:
+        if fallback_batch_size is None or fallback_batch_size <= 0:
+            raise ValueError("batch_size must be positive.")
+        batch_size = fallback_batch_size
+
+    split_dfs = {
+        split_name: add_label_indices(split_df, classes)
+        for split_name, split_df in load_split_csvs(split_dir).items()
+    }
+    transforms = {
+        "train": get_image_transforms(image_size=image_size, train=True),
+        "val": get_image_transforms(image_size=image_size, train=False),
+        "test": get_image_transforms(image_size=image_size, train=False),
+    }
+    datasets = {
+        split_name: HAM10000ImageDataset(
+            dataframe=split_df,
+            classes=classes,
+            transform=transforms[split_name],
+        )
+        for split_name, split_df in split_dfs.items()
+    }
+    dataloaders = {
+        "train": create_dataloader(
+            datasets["train"],
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+        ),
+        "val": create_dataloader(
+            datasets["val"],
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+        ),
+        "test": create_dataloader(
+            datasets["test"],
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+        ),
+    }
+    class_weights_df = compute_class_weights(split_dfs["train"], classes)
+
+    return datasets, dataloaders, class_weights_df
 
 
 def find_ham10000_paths(input_root: str | Path) -> dict[str, Any]:

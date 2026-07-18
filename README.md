@@ -71,6 +71,11 @@ image-path attachment, grouped stratified splitting, split summaries, and class
 distribution plots. These helpers accept caller-supplied paths and are suitable
 for Kaggle notebooks.
 
+Phase 3 adds the Kaggle-facing PyTorch image dataset, torchvision transforms,
+DataLoader creation, EfficientNet-B0 model factory, class-weight summaries, and
+batch/model preview helpers while keeping torch, torchvision, and timm imports
+lazy for lightweight local testing.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -78,7 +83,9 @@ for Kaggle notebooks.
 - Phase 1: Kaggle setup and HAM10000 dataset discovery.
 - Phase 2: metadata loading, image-path attachment, leakage-safe grouped
   stratified splitting, split summaries, and class-distribution plots.
-- Phase 3: Temperature Scaling, deep ensemble and MC Dropout uncertainty
+- Phase 3: PyTorch image dataset, transforms, DataLoaders, EfficientNet-B0
+  classifier creation, class weights, and lightweight summaries.
+- Phase 4: Temperature Scaling, deep ensemble and MC Dropout uncertainty
   scoring, referral threshold selection, and test-set evaluation.
-- Phase 4: reliability diagrams, risk-coverage curves, tables, final report
+- Phase 5: reliability diagrams, risk-coverage curves, tables, final report
   figures, and reproducibility cleanup.
