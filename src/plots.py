@@ -228,3 +228,74 @@ def plot_reliability_diagram(
     fig.savefig(destination, dpi=150)
     plt.close(fig)
     return destination
+
+
+def plot_uncertainty_correct_vs_incorrect(
+    scores_df: pd.DataFrame,
+    score_column: str,
+    output_path: str | Path,
+) -> Path:
+    """Save boxplots of an uncertainty score for correct vs incorrect cases."""
+    required_columns = {"correct", score_column}
+    missing_columns = required_columns.difference(scores_df.columns)
+    if missing_columns:
+        raise ValueError(
+            "scores_df is missing required column(s): "
+            f"{', '.join(sorted(missing_columns))}"
+        )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    correct_scores = scores_df.loc[scores_df["correct"], score_column].to_numpy()
+    incorrect_scores = scores_df.loc[~scores_df["correct"], score_column].to_numpy()
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.boxplot(
+        [correct_scores, incorrect_scores],
+        labels=["Correct", "Incorrect"],
+        showmeans=True,
+    )
+    ax.set_title(f"{score_column} by Prediction Correctness")
+    ax.set_xlabel("Prediction group")
+    ax.set_ylabel(score_column)
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination
+
+
+def plot_risk_coverage_curve(
+    referral_results_df: pd.DataFrame,
+    output_path: str | Path,
+) -> Path:
+    """Save risk-coverage curves for one or more uncertainty methods."""
+    required_columns = {"method", "coverage", "selective_risk"}
+    missing_columns = required_columns.difference(referral_results_df.columns)
+    if missing_columns:
+        raise ValueError(
+            "referral_results_df is missing required column(s): "
+            f"{', '.join(sorted(missing_columns))}"
+        )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    for method_name, method_df in referral_results_df.groupby("method"):
+        sorted_df = method_df.sort_values("coverage")
+        ax.plot(
+            sorted_df["coverage"],
+            sorted_df["selective_risk"],
+            marker="o",
+            label=str(method_name),
+        )
+    ax.set_title("Risk-Coverage Curve")
+    ax.set_xlabel("Coverage")
+    ax.set_ylabel("Selective risk")
+    ax.set_xlim(0.0, 1.0)
+    ax.legend(title="Method")
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination

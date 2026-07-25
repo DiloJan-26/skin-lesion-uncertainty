@@ -84,6 +84,10 @@ Phase 5 adds Temperature Scaling utilities, calibration metrics, calibrated
 probability prediction tables, and reliability diagram plotting for comparing
 uncalibrated and calibrated confidence.
 
+Phase 6 adds calibrated-baseline uncertainty scores, error-detection AUROC,
+validation-selected referral thresholds, selective classification metrics, and
+risk-coverage plotting.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -97,7 +101,7 @@ uncalibrated and calibrated confidence.
   export, classification metrics, training curves, and confusion matrices.
 - Phase 5: Temperature Scaling, calibration metrics, calibrated probabilities,
   prediction tables, and reliability diagrams.
-- Phase 6: deep ensemble and MC Dropout uncertainty scoring, referral threshold
-  selection, and test-set evaluation.
-- Phase 7: reliability diagrams, risk-coverage curves, tables, final report
+- Phase 6: calibrated-baseline uncertainty scoring, referral threshold
+  selection, selective classification, and risk-coverage evaluation.
+- Phase 7: deep ensemble and MC Dropout uncertainty comparison, final tables,
   figures, and reproducibility cleanup.
