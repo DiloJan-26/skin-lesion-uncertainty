@@ -92,6 +92,10 @@ Phase 8 adds Deep Ensemble probability aggregation, ensemble calibration from
 mean probabilities, ensemble uncertainty scores, and baseline-versus-ensemble
 comparison plotting.
 
+Phase 9 adds MC Dropout stochastic inference, MC Dropout uncertainty scoring,
+and uncertainty-method comparison plotting against the calibrated baseline and
+Deep Ensemble.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -110,5 +114,7 @@ comparison plotting.
 - Phase 7: Kaggle training and export of three EfficientNet-B0 ensemble members.
 - Phase 8: Deep Ensemble aggregation, ensemble calibration, ensemble
   uncertainty, referral comparison, and model comparison plots.
-- Phase 9: MC Dropout uncertainty comparison, final tables,
+- Phase 9: MC Dropout stochastic inference, uncertainty scoring, calibration
+  reuse, referral evaluation, and method comparison plots.
+- Phase 10: final tables,
   figures, and reproducibility cleanup.

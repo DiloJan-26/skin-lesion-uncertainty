@@ -1,4 +1,4 @@
-"""Classification metrics for baseline HAM10000 experiments."""
+"""Classification and calibration metrics for baseline, ensemble, and MC Dropout experiments."""
 
 from typing import Any
 

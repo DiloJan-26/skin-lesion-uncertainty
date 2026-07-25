@@ -216,6 +216,26 @@ def ensemble_error_detection_table(scores_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def mc_dropout_uncertainty_scores_dataframe(
+    stochastic_probabilities: Any,
+    labels: Any,
+    classes: list[str],
+    metadata_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build MC Dropout uncertainty scores from [T, N, C] probabilities."""
+    return ensemble_uncertainty_scores_dataframe(
+        stochastic_probabilities,
+        labels,
+        classes,
+        metadata_df=metadata_df,
+    )
+
+
+def mc_dropout_error_detection_table(scores_df: pd.DataFrame) -> pd.DataFrame:
+    """Compute MC Dropout error-detection AUROC for standard uncertainty scores."""
+    return ensemble_error_detection_table(scores_df)
+
+
 def _validate_member_probabilities(member_probabilities: Any) -> np.ndarray:
     probabilities = np.asarray(member_probabilities, dtype=np.float64)
     if probabilities.ndim != 3:
