@@ -6,6 +6,8 @@ from typing import Any
 
 import numpy as np
 
+from src.metrics import softmax_numpy
+
 
 def temperature_scale_logits_numpy(logits: Any, temperature: float) -> np.ndarray:
     """Divide logits by a positive scalar temperature."""
@@ -83,3 +85,65 @@ def save_temperature(temperature: float, output_path: str | Path) -> Path:
         json.dump({"temperature": float(temperature)}, file, indent=2)
         file.write("\n")
     return destination
+
+
+def fit_temperature_on_log_probabilities(
+    probabilities: Any,
+    labels: Any,
+    max_iter: int = 1000,
+    lr: float = 0.01,
+    initial_temperature: float = 1.0,
+    device: str | None = None,
+) -> float:
+    """Fit Temperature Scaling using stable log probabilities as logits."""
+    if initial_temperature <= 0:
+        raise ValueError("initial_temperature must be positive.")
+
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "torch is required to fit Temperature Scaling on probabilities. "
+            "Use this function in the Kaggle GPU environment."
+        ) from exc
+
+    clipped_probs = np.clip(np.asarray(probabilities, dtype=np.float64), 1e-12, 1.0)
+    log_probs = np.log(clipped_probs)
+    device_obj = torch.device(
+        device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+    logits_tensor = torch.as_tensor(log_probs, dtype=torch.float32, device=device_obj)
+    labels_tensor = torch.as_tensor(
+        np.asarray(labels), dtype=torch.long, device=device_obj
+    )
+    log_temperature = torch.nn.Parameter(
+        torch.tensor(
+            np.log(float(initial_temperature)),
+            dtype=torch.float32,
+            device=device_obj,
+        )
+    )
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam([log_temperature], lr=lr)
+
+    for _ in range(max_iter):
+        optimizer.zero_grad(set_to_none=True)
+        temperature = torch.exp(log_temperature)
+        loss = criterion(logits_tensor / temperature, labels_tensor)
+        loss.backward()
+        optimizer.step()
+
+    return float(torch.exp(log_temperature).detach().cpu().item())
+
+
+def apply_temperature_to_probabilities(
+    probabilities: Any,
+    temperature: float,
+) -> np.ndarray:
+    """Apply Temperature Scaling to probabilities via log-probabilities."""
+    if temperature <= 0:
+        raise ValueError(f"Temperature must be positive, got {temperature}.")
+
+    clipped_probs = np.clip(np.asarray(probabilities, dtype=np.float64), 1e-12, 1.0)
+    scaled_log_probs = np.log(clipped_probs) / float(temperature)
+    return softmax_numpy(scaled_log_probs)

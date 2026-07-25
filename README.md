@@ -88,6 +88,10 @@ Phase 6 adds calibrated-baseline uncertainty scores, error-detection AUROC,
 validation-selected referral thresholds, selective classification metrics, and
 risk-coverage plotting.
 
+Phase 8 adds Deep Ensemble probability aggregation, ensemble calibration from
+mean probabilities, ensemble uncertainty scores, and baseline-versus-ensemble
+comparison plotting.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
@@ -103,5 +107,8 @@ risk-coverage plotting.
   prediction tables, and reliability diagrams.
 - Phase 6: calibrated-baseline uncertainty scoring, referral threshold
   selection, selective classification, and risk-coverage evaluation.
-- Phase 7: deep ensemble and MC Dropout uncertainty comparison, final tables,
+- Phase 7: Kaggle training and export of three EfficientNet-B0 ensemble members.
+- Phase 8: Deep Ensemble aggregation, ensemble calibration, ensemble
+  uncertainty, referral comparison, and model comparison plots.
+- Phase 9: MC Dropout uncertainty comparison, final tables,
   figures, and reproducibility cleanup.

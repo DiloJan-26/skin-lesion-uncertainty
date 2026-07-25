@@ -299,3 +299,35 @@ def plot_risk_coverage_curve(
     fig.savefig(destination, dpi=150)
     plt.close(fig)
     return destination
+
+
+def plot_model_comparison(
+    comparison_df: pd.DataFrame,
+    metric_columns: list[str],
+    output_path: str | Path,
+) -> Path:
+    """Save a grouped bar chart comparing model-level metrics."""
+    if "model" not in comparison_df.columns:
+        raise ValueError("comparison_df must include a model column.")
+    missing_columns = set(metric_columns).difference(comparison_df.columns)
+    if missing_columns:
+        raise ValueError(
+            "comparison_df is missing metric column(s): "
+            f"{', '.join(sorted(missing_columns))}"
+        )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    plot_df = comparison_df.set_index("model")[metric_columns]
+    fig, ax = plt.subplots(figsize=(max(8, len(plot_df) * 2.5), 5))
+    plot_df.plot(kind="bar", ax=ax)
+    ax.set_title("Model Comparison")
+    ax.set_xlabel("Model")
+    ax.set_ylabel("Metric value")
+    ax.tick_params(axis="x", rotation=30)
+    ax.legend(title="Metric")
+    fig.tight_layout()
+    fig.savefig(destination, dpi=150)
+    plt.close(fig)
+    return destination

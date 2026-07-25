@@ -1,4 +1,4 @@
-"""Selective human referral evaluation for calibrated predictions."""
+"""Selective human referral evaluation for calibrated baseline or ensemble predictions."""
 
 from typing import Any
 

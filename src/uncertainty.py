@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
+from src.metrics import softmax_numpy
+
 
 def confidence_scores(probs: Any) -> np.ndarray:
     """Return maximum predicted probability for each sample."""
@@ -98,3 +100,127 @@ def uncertainty_error_detection_table(
             }
         )
     return pd.DataFrame(rows, columns=["score", "error_detection_auroc"])
+
+
+def stack_member_probabilities(member_logits: Any) -> np.ndarray:
+    """Convert member logits to probabilities and stack as [M, N, C]."""
+    logits_list = [np.asarray(logits, dtype=np.float64) for logits in member_logits]
+    if not logits_list:
+        raise ValueError("member_logits must contain at least one member array.")
+
+    reference_shape = logits_list[0].shape
+    if len(reference_shape) != 2:
+        raise ValueError(
+            "Each member logits array must have shape [N, C], "
+            f"got {reference_shape}."
+        )
+    mismatched_shapes = [
+        logits.shape for logits in logits_list if logits.shape != reference_shape
+    ]
+    if mismatched_shapes:
+        raise ValueError(
+            "All member logits arrays must have identical shape. "
+            f"Expected {reference_shape}, got {mismatched_shapes[0]}."
+        )
+
+    return np.stack([softmax_numpy(logits) for logits in logits_list], axis=0)
+
+
+def ensemble_mean_probabilities(member_probabilities: Any) -> np.ndarray:
+    """Average member probabilities over the model axis."""
+    probabilities = _validate_member_probabilities(member_probabilities)
+    return probabilities.mean(axis=0)
+
+
+def expected_entropy(member_probabilities: Any, eps: float = 1e-12) -> np.ndarray:
+    """Average member predictive entropy for each sample."""
+    probabilities = _validate_member_probabilities(member_probabilities)
+    clipped = np.clip(probabilities, eps, 1.0)
+    member_entropies = -np.sum(clipped * np.log(clipped), axis=2)
+    return member_entropies.mean(axis=0)
+
+
+def ensemble_predictive_entropy(
+    member_probabilities: Any,
+    eps: float = 1e-12,
+) -> np.ndarray:
+    """Compute entropy of ensemble mean probabilities for each sample."""
+    return predictive_entropy(
+        ensemble_mean_probabilities(member_probabilities),
+        eps=eps,
+    )
+
+
+def mutual_information(member_probabilities: Any, eps: float = 1e-12) -> np.ndarray:
+    """Compute ensemble mutual information uncertainty for each sample."""
+    information = ensemble_predictive_entropy(
+        member_probabilities,
+        eps=eps,
+    ) - expected_entropy(member_probabilities, eps=eps)
+    return np.clip(information, 0.0, None)
+
+
+def probability_variance(member_probabilities: Any) -> np.ndarray:
+    """Compute mean class-probability variance across ensemble members."""
+    probabilities = _validate_member_probabilities(member_probabilities)
+    return probabilities.var(axis=0).mean(axis=1)
+
+
+def ensemble_uncertainty_scores_dataframe(
+    member_probabilities: Any,
+    labels: Any,
+    classes: list[str],
+    metadata_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build a per-sample uncertainty table for ensemble predictions."""
+    probabilities = _validate_member_probabilities(member_probabilities)
+    mean_probabilities = ensemble_mean_probabilities(probabilities)
+    labels_array = np.asarray(labels, dtype=int)
+    predictions, correct = prediction_correctness(mean_probabilities, labels_array)
+
+    scores_df = pd.DataFrame()
+    if metadata_df is not None:
+        if len(metadata_df) != len(labels_array):
+            raise ValueError(
+                "metadata_df length must match probabilities and labels length "
+                f"({len(metadata_df)} != {len(labels_array)})."
+            )
+        for column in ("image_id", "lesion_id"):
+            if column in metadata_df.columns:
+                scores_df[column] = metadata_df[column].astype(str).to_numpy()
+
+    scores_df["true_label"] = labels_array
+    scores_df["true_class"] = [classes[index] for index in labels_array]
+    scores_df["predicted_label"] = predictions
+    scores_df["predicted_class"] = [classes[index] for index in predictions]
+    scores_df["confidence"] = confidence_scores(mean_probabilities)
+    scores_df["confidence_uncertainty"] = confidence_uncertainty(mean_probabilities)
+    scores_df["predictive_entropy"] = ensemble_predictive_entropy(probabilities)
+    scores_df["expected_entropy"] = expected_entropy(probabilities)
+    scores_df["mutual_information"] = mutual_information(probabilities)
+    scores_df["probability_variance"] = probability_variance(probabilities)
+    scores_df["correct"] = correct
+    return scores_df
+
+
+def ensemble_error_detection_table(scores_df: pd.DataFrame) -> pd.DataFrame:
+    """Compute ensemble error-detection AUROC for standard uncertainty scores."""
+    return uncertainty_error_detection_table(
+        scores_df,
+        score_columns=[
+            "confidence_uncertainty",
+            "predictive_entropy",
+            "mutual_information",
+            "probability_variance",
+        ],
+    )
+
+
+def _validate_member_probabilities(member_probabilities: Any) -> np.ndarray:
+    probabilities = np.asarray(member_probabilities, dtype=np.float64)
+    if probabilities.ndim != 3:
+        raise ValueError(
+            "member_probabilities must have shape [M, N, C], "
+            f"got {probabilities.shape}."
+        )
+    return probabilities

@@ -56,6 +56,40 @@ def classification_metrics_from_logits(
     }
 
 
+def classification_metrics_from_probabilities(
+    probs: Any,
+    labels: Any,
+    classes: list[str],
+) -> dict[str, float]:
+    """Compute core classification metrics from probabilities."""
+    probabilities = np.asarray(probs, dtype=np.float64)
+    labels_array = np.asarray(labels, dtype=int)
+    predictions = np.argmax(probabilities, axis=1)
+
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        labels_array,
+        predictions,
+        labels=list(range(len(classes))),
+        average="macro",
+        zero_division=0,
+    )
+    melanoma_index = classes.index("mel")
+    melanoma_recall = recall_score(
+        labels_array,
+        predictions,
+        labels=[melanoma_index],
+        average="macro",
+        zero_division=0,
+    )
+    return {
+        "accuracy": float(accuracy_score(labels_array, predictions)),
+        "macro_precision": float(precision),
+        "macro_recall": float(recall),
+        "macro_f1": float(f1),
+        "melanoma_recall": float(melanoma_recall),
+    }
+
+
 def classification_report_dataframe(
     labels: Any,
     predictions: Any,
@@ -139,6 +173,32 @@ def calibration_metrics_from_logits(
 
     labels_array = np.asarray(labels, dtype=int)
     probabilities = softmax_numpy(logits_array)
+    predictions = np.argmax(probabilities, axis=1)
+    return {
+        "accuracy": float(accuracy_score(labels_array, predictions)),
+        "nll": negative_log_likelihood_from_probs(probabilities, labels_array),
+        "brier_score": multiclass_brier_score(
+            probabilities,
+            labels_array,
+            num_classes=len(classes),
+        ),
+        "ece": expected_calibration_error(
+            probabilities,
+            labels_array,
+            n_bins=n_bins,
+        ),
+    }
+
+
+def calibration_metrics_from_probabilities(
+    probs: Any,
+    labels: Any,
+    classes: list[str],
+    n_bins: int = 15,
+) -> dict[str, float]:
+    """Compute accuracy, NLL, Brier score, and ECE from probabilities."""
+    probabilities = np.asarray(probs, dtype=np.float64)
+    labels_array = np.asarray(labels, dtype=int)
     predictions = np.argmax(probabilities, axis=1)
     return {
         "accuracy": float(accuracy_score(labels_array, predictions)),
