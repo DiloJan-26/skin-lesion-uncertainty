@@ -162,13 +162,13 @@ def prediction_dataframe_from_probabilities(
     return predictions_df
 
 
-def enable_mc_dropout(model: Any) -> Any:
-    """Enable dropout stochasticity while keeping the model otherwise in eval mode."""
+def inspect_dropout_modules(model: Any) -> list[Any]:
+    """Return all supported torch dropout modules contained in a model."""
     try:
         import torch
     except ImportError as exc:
         raise ImportError(
-            "torch is required to enable MC Dropout. Use this on Kaggle GPU."
+            "torch is required to inspect dropout modules. Use this on Kaggle GPU."
         ) from exc
 
     dropout_classes = (
@@ -178,10 +178,23 @@ def enable_mc_dropout(model: Any) -> Any:
         torch.nn.Dropout3d,
         torch.nn.AlphaDropout,
     )
+    return [
+        module for module in model.modules() if isinstance(module, dropout_classes)
+    ]
+
+
+def enable_mc_dropout(model: Any) -> Any:
+    """Enable dropout stochasticity while keeping the model otherwise in eval mode."""
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "torch is required to enable MC Dropout. Use this on Kaggle GPU."
+        ) from exc
+
     model.eval()
-    for module in model.modules():
-        if isinstance(module, dropout_classes):
-            module.train()
+    for module in inspect_dropout_modules(model):
+        module.train()
     return model
 
 
@@ -203,6 +216,17 @@ def collect_mc_dropout_probabilities(
             "torch is required to collect MC Dropout probabilities. "
             "Use this on Kaggle GPU."
         ) from exc
+
+    active_dropout_modules = [
+        module
+        for module in inspect_dropout_modules(model)
+        if float(module.p) > 0.0
+    ]
+    if not active_dropout_modules:
+        raise ValueError(
+            "MC Dropout requires at least one supported dropout module with p > 0. "
+            "Create the model with an explicit positive classifier dropout."
+        )
 
     device_obj = torch.device(device)
     amp_enabled = use_amp and device_obj.type == "cuda" and torch.cuda.is_available()
@@ -260,4 +284,14 @@ def collect_mc_dropout_probabilities(
     if reference_labels is None or reference_metadata is None:
         raise ValueError("Dataloader produced no batches.")
 
-    return np.stack(pass_probabilities, axis=0), reference_labels, reference_metadata
+    stacked_probabilities = np.stack(pass_probabilities, axis=0)
+    if all(
+        np.array_equal(stacked_probabilities[0], pass_probabilities[pass_index])
+        for pass_index in range(1, num_passes)
+    ):
+        raise RuntimeError(
+            "All MC Dropout passes produced identical probabilities. "
+            "Verify that active dropout modules are on the model's forward path."
+        )
+
+    return stacked_probabilities, reference_labels, reference_metadata

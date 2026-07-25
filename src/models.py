@@ -15,7 +15,21 @@ def create_efficientnet_classifier(
     pretrained: bool = True,
     dropout_probability: float = 0.2,
 ) -> Any:
-    """Create an EfficientNet classifier with a configurable output head."""
+    """Create EfficientNet with explicit classifier dropout.
+
+    The dropout module is attached inside a ``Linear`` subclass so the final
+    parameters retain timm's ``classifier.weight`` and ``classifier.bias``
+    state-dict keys. This keeps checkpoints from the previous factory
+    loadable while making dropout discoverable for MC Dropout inference.
+    """
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "torch is required to create EfficientNet classifiers. "
+            "Use this in the Kaggle GPU environment."
+        ) from exc
+
     try:
         import timm
     except ImportError as exc:
@@ -24,12 +38,52 @@ def create_efficientnet_classifier(
             "Install/use it in the Kaggle GPU environment."
         ) from exc
 
-    return timm.create_model(
+    if not 0.0 <= dropout_probability < 1.0:
+        raise ValueError(
+            "dropout_probability must be in the interval [0, 1), "
+            f"got {dropout_probability}."
+        )
+
+    model = timm.create_model(
         backbone,
         pretrained=pretrained,
         num_classes=num_classes,
-        drop_rate=dropout_probability,
+        # Explicit module dropout below replaces timm's functional dropout.
+        drop_rate=0.0,
     )
+
+    existing_classifier = getattr(model, "classifier", None)
+    if not isinstance(existing_classifier, torch.nn.Linear):
+        raise ValueError(
+            f"Expected {backbone!r} to expose torch.nn.Linear as "
+            "model.classifier; checkpoint-compatible replacement is not possible."
+        )
+
+    class _DropoutLinear(torch.nn.Linear):
+        """Linear classifier that applies an explicit parameter-free dropout."""
+
+        def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            bias: bool,
+            probability: float,
+        ) -> None:
+            super().__init__(in_features, out_features, bias=bias)
+            self.dropout = torch.nn.Dropout(p=probability)
+
+        def forward(self, inputs: Any) -> Any:
+            return super().forward(self.dropout(inputs))
+
+    classifier = _DropoutLinear(
+        in_features=existing_classifier.in_features,
+        out_features=existing_classifier.out_features,
+        bias=existing_classifier.bias is not None,
+        probability=dropout_probability,
+    )
+    classifier.load_state_dict(existing_classifier.state_dict(), strict=True)
+    model.classifier = classifier
+    return model
 
 
 def count_trainable_parameters(model: Any) -> int:

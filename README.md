@@ -96,6 +96,20 @@ Phase 9 adds MC Dropout stochastic inference, MC Dropout uncertainty scoring,
 and uncertainty-method comparison plotting against the calibrated baseline and
 Deep Ensemble.
 
+### MC Dropout Correction
+
+The initial Phase 9 MC Dropout run was invalid: timm's configured `drop_rate`
+used functional dropout during training but created no `torch.nn.Dropout`
+module, so enabling dropout modules at inference left all 20 passes identical.
+The corrected EfficientNet-B0 classifier now applies an explicit Dropout module
+before its final Linear operation.
+
+The Linear parameters retain the state-dict keys `classifier.weight` and
+`classifier.bias`, and Dropout has no parameters. The existing seed-42
+checkpoint therefore remains strictly loadable and does not require
+retraining. MC Dropout inference, calibration, uncertainty, and referral
+results must be rerun because the previous stochastic passes were invalid.
+
 ## Phase Roadmap
 
 - Phase 0: repository scaffold, configuration, path utilities,
