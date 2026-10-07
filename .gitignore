@@ -36,3 +36,6 @@ Thumbs.db
 .pytest_cache/
 
 .pytest_cache/
+
+raw outputs/
+report/
